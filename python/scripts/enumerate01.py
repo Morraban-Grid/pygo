@@ -12,3 +12,8 @@ index_sueldos = {index : sueldo for index, sueldo in enumerate(sueldos, start=1)
 print("Index and sueldos:")
 for index, sueldo in index_sueldos.items():
     print(f"Index: {index}, Sueldo: {sueldo}")
+
+# Filtrar elementos por su posisición
+frutas = ["manzana", "banana", "naranja", "pera", "uva", "kiwi", "melon", "sandia", "cereza", "durazno"]
+print("\nFrutas con índice múltiplo de 3:")
+print([fruta for index, fruta in enumerate(frutas, start=1) if index % 3 == 0])
