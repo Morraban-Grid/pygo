@@ -37,4 +37,23 @@ func main() {
 	fmt.Println("\n--- Channels con make ---")
 	fmt.Println("Mensaje 1:", <-mensajes)
 	fmt.Println("Mensaje 2:", <-mensajes)
+
+	//Creando otros slices
+	candidatos := make([]string, 0, 36)
+	candidatos = append(candidatos,
+	"karol", 
+	"carlos",
+	"ricardo",
+	"roberto",
+	"rafael",
+	"cesar")
+	
+	//porcentaje de intencion de voto
+	porcentaje := make([]float64, 0, 36)
+	porcentaje = append(porcentaje, 20.5, 15.3, 10.0, 25.0, 18.2, 11.0)
+
+	fmt.Println("\n--- Candidatos y Porcentajes ---")
+	for i := range candidatos {
+		fmt.Printf("%s: %.1f%%\n", candidatos[i], porcentaje[i])
+	}
 }
