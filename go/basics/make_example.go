@@ -56,4 +56,13 @@ func main() {
 	for i := range candidatos {
 		fmt.Printf("%s: %.1f%%\n", candidatos[i], porcentaje[i])
 	}
+
+	//Ejemplo de uso de make con slices para almacenar nombres de frutas
+	frutas := make([]string, 0, 10)
+	frutas = append(frutas, "Manzana", "Banana", "Naranja", "Uva", "Pera")
+
+	fmt.Println("\n--- Frutas ---")
+	for _, fruta := range frutas {
+		fmt.Println(fruta)
+	}
 }
