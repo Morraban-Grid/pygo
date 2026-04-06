@@ -5,6 +5,15 @@ package main
 import "fmt"
 
 func main() {
+	//variable
+	var texto string
+	texto = "hola, mundo"
+	var puntero *string = &texto
+	fmt.Println(texto, ": ", &texto)
+	fmt.Println("puntero: ", puntero)
+	fmt.Println("dirección del puntero: ", &puntero)
+
+
 	// 1. Trabajando con SLICES
 	// make([]T, longitud, capacidad)
 	// Creamos un slice de enteros con longitud 3 y capacidad 5
