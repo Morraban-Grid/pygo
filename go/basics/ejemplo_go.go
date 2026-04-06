@@ -55,5 +55,13 @@ func main(){
 				c[i][j] = A[i][j] + B[i][j]
 		}
 	}(i)
+	//Pasamos i como argumento para evitar problemas de concurrencia con la variable i
+
+	}
+
+	wg.Wait() //Esperamos a que todas las goroutines terminen
+	fmt.Println("Matriz A:", A)
+	fmt.Println("Matriz B:", B)
+	fmt.Println("Matriz C (Resultado):", C)
 
 }
