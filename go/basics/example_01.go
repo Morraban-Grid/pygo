@@ -2,41 +2,55 @@ package main
 
 import (
 	"fmt"
-	"sync"
 )
 
+// Definimos una estructura sencilla para nuestros datos
+type Log struct {
+	Nivel   string
+	Mensaje string
+}
+
 func main() {
-	// 1. Creamos un mapa con datos iniciales
-	inventario := map[string]int{
-		"Laptops": 5,
-		"Mouses":  20,
-		"Teclados": 15,
+	// 1. Slice: Nuestra fuente de datos "cruda"
+	eventos := []Log{
+		{"INFO", "Sistema iniciado"},
+		{"ERROR", "Fallo de conexión a BD"},
+		{"INFO", "Usuario login: admin"},
+		{"WARN", "Uso de CPU elevado"},
+		{"ERROR", "Permiso denegado en /var/log"},
 	}
 
-	// 2. Creamos un canal para comunicar el nombre del producto
-	canalProductos := make(chan string)
-	
-	// Usamos WaitGroup para esperar a que la goroutine termine
-	var wg sync.WaitGroup
-	wg.Add(1)
+	// 2. Canal: Para enviar logs uno por uno
+	canalLogs := make(chan Log)
 
-	// 3. Consumidor: Una goroutine que recibe del canal y consulta el mapa
+	// 3. Mapa: Para agrupar los logs (Severidad -> Lista de mensajes)
+	// Usamos un slice como valor del mapa: map[string][]string
+	reporte := make(map[string][]string)
+
+	// Goroutine Procesadora
+	done := make(chan bool)
 	go func() {
-		defer wg.Done()
-		for producto := range canalProductos {
-			cantidad := inventario[producto]
-			fmt.Printf("Procesando: %s | Stock disponible: %d\n", producto, cantidad)
+		for log := range canalLogs {
+			// Agregamos el mensaje al slice correspondiente dentro del mapa
+			reporte[log.Nivel] = append(reporte[log.Nivel], log.Mensaje)
 		}
+		done <- true
 	}()
 
-	// 4. Productor: Enviamos las llaves del mapa al canal
-	for nombre := range inventario {
-		canalProductos <- nombre
+	// 4. Productor: Recorremos el slice y enviamos al canal
+	for _, e := range eventos {
+		canalLogs <- e
 	}
+	close(canalLogs) // Importante cerrar para que el range termine
 
-	// Cerramos el canal y esperamos
-	close(canalProductos)
-	wg.Wait()
-	
-	fmt.Println("Procesamiento completado.")
+	<-done // Esperamos a que el proceso termine
+
+	// 5. Resultado final: Mostramos el mapa organizado
+	fmt.Println("--- Reporte de Sistema ---")
+	for nivel, mensajes := range reporte {
+		fmt.Printf("[%s]: %d eventos encontrados\n", nivel, len(mensajes))
+		for _, msg := range mensajes {
+			fmt.Printf("  - %s\n", msg)
+		}
+	}
 }
