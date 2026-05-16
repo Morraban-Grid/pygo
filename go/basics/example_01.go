@@ -1,31 +1,78 @@
 package main
 
-import (
-	"fmt"
-	"math"
-)
+import "fmt"
+
+type Employee struct {
+	ID     int
+	Name   string
+	Age    int
+	Salary float64
+}
+
+type Manager struct {
+	Employees []Employee
+}
+
+// AddEmployee adds a new employee to the manager's list.
+func (m *Manager) AddEmployee(e Employee) {
+	// TODO: Implement this method
+	m.Employees = append(m.Employees,e)
+}
+
+// RemoveEmployee removes an employee by ID from the manager's list.
+func (m *Manager) RemoveEmployee(id int) {
+	// TODO: Implement this method
+	for i, emp := range m.Employees{
+	    if emp.ID == id{
+	        //Eliminamos el elemento uniendo lo que está antes
+	        // con lo que está después
+	        m.Employees = append(m.Employees[:i], m.Employees[i+1:]...)
+	        return 
+	    }
+	}
+}
+
+// GetAverageSalary calculates the average salary of all employees.
+func (m *Manager) GetAverageSalary() float64 {
+	// TODO: Implement this method
+	if len(m.Employees) == 0.0{
+	    return 0.0
+	}
+	
+	var totalSalary float64
+	
+	for _, emp := range m.Employees{
+	    totalSalary += emp.Salary
+	}
+	return totalSalary/ float64(len(m.Employees))
+}
+
+// FindEmployeeByID finds and returns an employee by their ID.
+func (m *Manager) FindEmployeeByID(id int) *Employee {
+	// TODO: Implement this method
+	for _, emp := range m.Employees{
+	    if emp.ID == id{
+	        return &emp
+	    }
+	}
+	return nil
+}
 
 func main() {
-	// 1. Canal para transmitir el área calculada
-	canalArea := make(chan float64)
+    // Creamos una estructura de Manager, esta contiene un campo
+    // de tipo slice, este sclice es de tipo de la estructura llamada Employee. Dicho slice se llama Employees.
+	manager := Manager{}
+	manager.AddEmployee(Employee{ID: 1, Name: "Alice", Age: 30, Salary: 70000})
+	manager.AddEmployee(Employee{ID: 2, Name: "Bob", Age: 25, Salary: 65000})
+	manager.RemoveEmployee(1)
+	averageSalary := manager.GetAverageSalary()
+	employee := manager.FindEmployeeByID(2)
 
-	// Lados de nuestro triángulo
-	a, b, c := 3.0, 4.0, 5.0
-
-	// 2. Goroutine para calcular el área (Herón)
-	go func(ladoA, ladoB, ladoC float64) {
-		// Cálculo del semiperímetro
-		s := (ladoA + ladoB + ladoC) / 2
-		
-		// Teorema de Herón
-		area := math.Sqrt(s * (s - ladoA) * (s - ladoB) * (s - ladoC))
-		
-		// Enviamos el resultado por el canal
-		canalArea <- area
-	}(a, b, c)
-
-	// 3. Recibimos el valor del canal
-	resultado := <-canalArea
-
-	fmt.Printf("El área del triángulo calculada con Herón es: %.2f\n", resultado)
+	fmt.Printf("Average Salary: %f\n", averageSalary)
+	// Si el empleado existe, devolvemos un mensaje
+	if employee != nil {
+		fmt.Printf("Employee found: %+v\n", *employee)
+	} else{
+	    fmt.Println("Employee not found")
+	}
 }
