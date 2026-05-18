@@ -1,156 +1,65 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
+	"net/http"
 )
 
-// Tarea representa el modelo de datos
-type Tarea struct {
-	ID        int
-	Contenido string
+// Definimos la estructura de nuestro Producto
+type Producto struct {
+	ID     int    `json:"id"`
+	Nombre string `json:"nombre"`
+	Precio float64 `json:"precio"`
 }
 
-// "Base de datos" en memoria usando un slice
-var tareas []Tarea
-var contadorID = 1
+// Simulamos una base de datos en memoria con una rebanada (slice)
+var productos = []Producto{
+	{ID: 1, Nombre: "Laptop", Precio: 899.99},
+	{ID: 2, Nombre: "Ratón Óptico", Precio: 19.99},
+}
+
+// Controlador para manejar las peticiones de /productos
+func manejadorProductos(w http.ResponseWriter, r *http.Request) {
+	// Definimos que la respuesta siempre será JSON
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		// Convertimos los productos a JSON y los enviamos
+		json.NewEncoder(w).Encode(productos)
+
+	case http.MethodPost:
+		var nuevoProducto Producto
+		// Decodificamos el cuerpo de la petición (JSON) dentro de la estructura
+		err := json.NewDecoder(r.Body).Decode(&nuevoProducto)
+		if err != nil {
+			http.Error(w, "JSON inválido", http.StatusBadRequest)
+			return
+		}
+
+		// Asignamos un ID simple y guardamos
+		nuevoProducto.ID = len(productos) + 1
+		productos = append(productos, nuevoProducto)
+
+		// Respondemos con el producto creado y el estatus 201 (Created)
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(nuevoProducto)
+
+	default:
+		// Si usan PUT, DELETE, etc., respondemos que no está permitido
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+	}
+}
 
 func main() {
-	// Precargamos un par de tareas (Crear)
-	tareas = append(tareas, Tarea{ID: 1, Contenido: "Estudiar Go"})
-	tareas = append(tareas, Tarea{ID: 2, Contenido: "Comprar café"})
-	contadorID = 3
+	// Asociamos la ruta "/productos" con nuestra función manejadora
+	http.HandleFunc("/productos", manejadorProductos)
 
-	lector := bufio.NewReader(os.Stdin)
-
-	for {
-		fmt.Println("\n--- MENÚ CRUD DE TAREAS ---")
-		fmt.Println("1. Ver tareas (Read)")
-		fmt.Println("2. Agregar tarea (Create)")
-		fmt.Println("3. Editar tarea (Update)")
-		fmt.Println("4. Eliminar tarea (Delete)")
-		fmt.Println("5. Salir")
-		fmt.Print("Elige una opción: ")
-
-		opcionRaw, _ := lector.ReadString('\n')
-		opcion := strings.TrimSpace(opcionRaw)
-
-		switch opcion {
-		case "1":
-			leerTareas()
-		case "2":
-			crearTarea(lector)
-		case "3":
-			actualizarTarea(lector)
-		case "4":
-			eliminarTarea(lector)
-		case "5":
-			fmt.Println("¡Hasta luego!")
-			return
-		default:
-			fmt.Println("Opción no válida. Intenta de nuevo.")
-		}
-	}
-}
-
-// === 1. LEER (READ) ===
-func leerTareas() {
-	fmt.Println("\n--- LISTA DE TAREAS ---")
-	if len(tareas) == 0 {
-		fmt.Println("[ No hay tareas pendientes ]")
-		return
-	}
-	for _, t := range tareas {
-		fmt.Printf("[%d] %s\n", t.ID, t.Contenido)
-	}
-}
-
-// === 2. CREAR (CREATE) ===
-func crearTarea(lector *bufio.Reader) {
-	fmt.Print("\nEscribe la nueva tarea: ")
-	texto, _ := lector.ReadString('\n')
-	texto = strings.TrimSpace(texto)
-
-	if texto == "" {
-		fmt.Println("La tarea no puede estar vacía.")
-		return
-	}
-
-	nueva := Tarea{ID: contadorID, Contenido: texto}
-	tareas = append(tareas, nueva)
-	contadorID++
-	fmt.Println("¡Tarea agregada con éxito!")
-}
-
-// === 3. ACTUALIZAR (UPDATE) ===
-func actualizarTarea(lector *bufio.Reader) {
-	leerTareas()
-	if len(tareas) == 0 {
-		return
-	}
-
-	fmt.Print("\nIngresa el ID de la tarea a editar: ")
-	idRaw, _ := lector.ReadString('\n')
-	id, err := strconv.Atoi(strings.TrimSpace(idRaw))
+	// Iniciamos el servidor en el puerto 8080
+	fmt.Println("Servidor corriendo en http://localhost:8080")
+	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
-		fmt.Println("ID inválido.")
-		return
+		fmt.Println("Error al iniciar el servidor:", err)
 	}
-
-	// Buscar la tarea por ID
-	indice := -1
-	for i, t := range tareas {
-		if t.ID == id {
-			indice = i
-			break
-		}
-	}
-
-	if indice == -1 {
-		fmt.Println("Tarea no encontrada.")
-		return
-	}
-
-	fmt.Print("Escribe el nuevo contenido: ")
-	nuevoTexto, _ := lector.ReadString('\n')
-	nuevoTexto = strings.TrimSpace(nuevoTexto)
-
-	tareas[indice].Contenido = nuevoTexto
-	fmt.Println("¡Tarea actualizada!")
-}
-
-// === 4. ELIMINAR (DELETE) ===
-func eliminarTarea(lector *bufio.Reader) {
-	leerTareas()
-	if len(tareas) == 0 {
-		return
-	}
-
-	fmt.Print("\nIngresa el ID de la tarea a eliminar: ")
-	idRaw, _ := lector.ReadString('\n')
-	id, err := strconv.Atoi(strings.TrimSpace(idRaw))
-	if err != nil {
-		fmt.Println("ID inválido.")
-		return
-	}
-
-	indice := -1
-	for i, t := range tareas {
-		if t.ID == id {
-			indice = i
-			break
-		}
-	}
-
-	if indice == -1 {
-		fmt.Println("Tarea no encontrada.")
-		return
-	}
-
-	// Eliminar del slice manteniendo el orden
-	tareas = append(tareas[:indice], tareas[indice+1:]...)
-	fmt.Println("¡Tarea eliminada!")
 }
