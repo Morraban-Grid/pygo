@@ -4,62 +4,67 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
-// Definimos la estructura de nuestro Producto
-type Producto struct {
-	ID     int    `json:"id"`
-	Nombre string `json:"nombre"`
-	Precio float64 `json:"precio"`
+// Estructura para la respuesta del clima
+type ClimaRespuesta struct {
+	Ciudad      string `json:"ciudad"`
+	Temperatura string `json:"temperatura"`
+	Condicion   string `json:"condicion"`
 }
 
-// Simulamos una base de datos en memoria con una rebanada (slice)
-var productos = []Producto{
-	{ID: 1, Nombre: "Laptop", Precio: 899.99},
-	{ID: 2, Nombre: "Ratón Óptico", Precio: 19.99},
+// Simulamos datos de clima para algunas ciudades
+var datosClima = map[string]ClimaRespuesta{
+	"madrid":    {Ciudad: "Madrid", Temperatura: "22°C", Condicion: "Soleado"},
+	"bogota":    {Ciudad: "Bogotá", Temperatura: "14°C", Condicion: "Lluvioso"},
+	"buenosaires": {Ciudad: "Buenos Aires", Temperatura: "18°C", Condicion: "Nublado"},
 }
 
-// Controlador para manejar las peticiones de /productos
-func manejadorProductos(w http.ResponseWriter, r *http.Request) {
-	// Definimos que la respuesta siempre será JSON
+func manejadorClima(w http.ResponseWriter, r *http.Request) {
+	// 1. Validar que solo se permita el método GET
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 2. Extraer el parámetro "ciudad" de la URL (?ciudad=...)
+	// r.URL.Query() parsea la URL y .Get() busca la clave
+	ciudadSolicitada := r.URL.Query().Get("ciudad")
+
+	// Si el usuario no envió el parámetro, devolvemos un error 400
+	if ciudadSolicitada == "" {
+		http.Error(w, "Falta el parámetro 'ciudad' en la URL", http.StatusBadRequest)
+		return
+	}
+
+	// Limpiamos el texto (minúsculas y sin espacios) para buscar en el mapa
+	ciudadClave := strings.ToLower(strings.TrimSpace(ciudadSolicitada))
+
+	// 3. Buscar la ciudad en nuestro "mapa" (base de datos)
+	clima, existe := datosClima[ciudadClave]
+
 	w.Header().Set("Content-Type", "application/json")
 
-	switch r.Method {
-	case http.MethodGet:
-		// Convertimos los productos a JSON y los enviamos
-		json.NewEncoder(w).Encode(productos)
-
-	case http.MethodPost:
-		var nuevoProducto Producto
-		// Decodificamos el cuerpo de la petición (JSON) dentro de la estructura
-		err := json.NewDecoder(r.Body).Decode(&nuevoProducto)
-		if err != nil {
-			http.Error(w, "JSON inválido", http.StatusBadRequest)
-			return
-		}
-
-		// Asignamos un ID simple y guardamos
-		nuevoProducto.ID = len(productos) + 1
-		productos = append(productos, nuevoProducto)
-
-		// Respondemos con el producto creado y el estatus 201 (Created)
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(nuevoProducto)
-
-	default:
-		// Si usan PUT, DELETE, etc., respondemos que no está permitido
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+	if !existe {
+		// Si la ciudad no está, devolvemos un 404 en formato JSON
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Ciudad no encontrada en el sistema"})
+		return
 	}
+
+	// 4. Si todo está bien, devolvemos el clima de la ciudad
+	json.NewEncoder(w).Encode(clima)
 }
 
 func main() {
-	// Asociamos la ruta "/productos" con nuestra función manejadora
-	http.HandleFunc("/productos", manejadorProductos)
+	// Registramos la ruta /clima
+	http.HandleFunc("/clima", manejadorClima)
 
-	// Iniciamos el servidor en el puerto 8080
-	fmt.Println("Servidor corriendo en http://localhost:8080")
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
+	port := ":8080"
+	fmt.Printf("Servidor de clima corriendo en http://localhost%s\n", port)
+	
+	if err := http.ListenAndServe(port, nil); err != nil {
 		fmt.Println("Error al iniciar el servidor:", err)
 	}
 }
