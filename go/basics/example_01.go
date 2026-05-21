@@ -3,59 +3,66 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"sync"
 )
 
-// Usuario representa la estructura de datos de nuestro usuario
-type Usuario struct {
+// 1. MODELO DE DATOS
+type Estudiante struct {
 	ID     int    `json:"id"`
 	Nombre string `json:"nombre"`
-	Email  string `json:"email"`
+	Edad   int    `json:"edad"`
+	Curso  string `json:"curso"`
 }
 
-// UsuarioHandler maneja la base de datos en memoria y la concurrencia
-type UsuarioHandler struct {
-	mu       sync.Mutex
-	usuarios []Usuario
-	nextID   int
-}
+// 2. BASE DE DATOS EN MEMORIA
+// Usamos sync.Mutex para evitar problemas de concurrencia al leer/escribir el mapa
+var (
+	estudiantes = make(map[int]Estudiante)
+	proximoID   = 1
+	mutex       sync.Mutex
+)
 
-func NewUsuarioHandler() *UsuarioHandler {
-	return &UsuarioHandler{
-		usuarios: []Usuario{
-			{ID: 1, Nombre: "Alice", Email: "alice@example.com"},
-		},
-		nextID: 2,
+func main() {
+	// 4. ENRUTADOR (Usando las mejoras de enrutamiento de Go 1.22+)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /estudiantes", obtenerEstudiantes)
+	mux.HandleFunc("GET /estudiantes/{id}", obtenerEstudiantePorID)
+	mux.HandleFunc("POST /estudiantes", crearEstudiante)
+	mux.HandleFunc("PUT /estudiantes/{id}", actualizarEstudiante)
+	mux.HandleFunc("DELETE /estudiantes/{id}", eliminarEstudiante)
+
+	fmt.Println("Servidor corriendo en http://localhost:8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		fmt.Printf("Error al iniciar el servidor: %v\n", err)
 	}
 }
 
-// Crear o Listar usuarios (Ruta: /usuarios)
-func (h *UsuarioHandler) ManejarUsuarios(w http.ResponseWriter, r *http.Request) {
+// ==========================================
+// 3. CONTROLADORES (HANDLERS)
+// ==========================================
+
+// Obtener todos los estudiantes
+func obtenerEstudiantes(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	switch r.Method {
-	case http.MethodGet:
-		h.listarUsuarios(w, r)
-	case http.MethodPost:
-		h.crearUsuario(w, r)
-	default:
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+	mutex.Lock()
+	listaEstudiantes := make([]Estudiante, 0, len(estudiantes))
+	for _, estudiante := range estudiantes {
+		listaEstudiantes = append(listaEstudiantes, estudiante)
 	}
+	mutex.Unlock()
+
+	json.NewEncoder(w).Encode(listaEstudiantes)
 }
 
-// Obtener un usuario específico (Ruta: /usuarios/{id})
-func (h *UsuarioHandler) ManejarUsuarioPorID(w http.ResponseWriter, r *http.Request) {
+// Obtener un estudiante por ID
+func obtenerEstudiantePorID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if r.Method != http.MethodGet {
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Extraer el ID de la URL (Go 1.22+)
+	// Extraer el ID de la URL
 	idStr := r.PathValue("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -63,56 +70,94 @@ func (h *UsuarioHandler) ManejarUsuarioPorID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	mutex.Lock()
+	estudiante, existe := estudiantes[id]
+	mutex.Unlock()
 
-	for _, u := range h.usuarios {
-		if u.ID == id {
-			json.NewEncoder(w).Encode(u)
-			return
-		}
-	}
-
-	http.Error(w, "Usuario no encontrado", http.StatusNotFound)
-}
-
-func (h *UsuarioHandler) listarUsuarios(w http.ResponseWriter, r *http.Request) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	// Devolvemos la lista completa
-	json.NewEncoder(w).Encode(h.usuarios)
-}
-
-func (h *UsuarioHandler) crearUsuario(w http.ResponseWriter, r *http.Request) {
-	var nuevoUsuario Usuario
-
-	// Decodificar el cuerpo de la petición
-	err := json.NewDecoder(r.Body).Decode(&nuevoUsuario)
-	if err != nil || nuevoUsuario.Nombre == "" || nuevoUsuario.Email == "" {
-		http.Error(w, "Datos de usuario inválidos", http.StatusBadRequest)
+	if !existe {
+		http.Error(w, "Estudiante no encontrado", http.StatusNotFound)
 		return
 	}
 
-	h.mu.Lock()
-	nuevoUsuario.ID = h.nextID
-	h.nextID++
-	h.usuarios = append(h.usuarios, nuevoUsuario)
-	h.mu.Unlock()
-
-	// Responder con el usuario creado y estado 201 Created
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(nuevoUsuario)
+	json.NewEncoder(w).Encode(estudiante)
 }
 
-func main() {
-	handler := NewUsuarioHandler()
+// Crear un nuevo estudiante
+func crearEstudiante(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 
-	// Definición de rutas (Sintaxis compatible con Go 1.22+)
-	http.HandleFunc("GET /usuarios", handler.ManejarUsuarios)
-	http.HandleFunc("POST /usuarios", handler.ManejarUsuarios)
-	http.HandleFunc("GET /usuarios/{id}", handler.ManejarUsuarioPorID)
+	var nuevoEstudiante Estudiante
+	// Decodificar el cuerpo JSON de la petición
+	err := json.NewDecoder(r.Body).Decode(&nuevoEstudiante)
+	if err != nil {
+		http.Error(w, "Datos de entrada inválidos", http.StatusBadRequest)
+		return
+	}
 
-	fmt.Println("Servidor corriendo en http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	mutex.Lock()
+	nuevoEstudiante.ID = proximoID
+	estudiantes[proximoID] = nuevoEstudiante
+	proximoID++
+	mutex.Unlock()
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(nuevoEstudiante)
+}
+
+// Actualizar un estudiante existente
+func actualizarEstudiante(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID inválido", http.StatusBadRequest)
+		return
+	}
+
+	var estudianteActualizado Estudiante
+	err = json.NewDecoder(r.Body).Decode(&estudianteActualizado)
+	if err != nil {
+		http.Error(w, "Datos de entrada inválidos", http.StatusBadRequest)
+		return
+	}
+
+	mutex.Lock()
+	_, existe := estudiantes[id]
+	if !existe {
+		mutex.Unlock()
+		http.Error(w, "Estudiante no encontrado", http.StatusNotFound)
+		return
+	}
+
+	estudianteActualizado.ID = id
+	estudiantes[id] = estudianteActualizado
+	mutex.Unlock()
+
+	json.NewEncoder(w).Encode(estudianteActualizado)
+}
+
+// Eliminar un estudiante
+func eliminarEstudiante(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID inválido", http.StatusBadRequest)
+		return
+	}
+
+	mutex.Lock()
+	_, existe := estudiantes[id]
+	if !existe {
+		mutex.Unlock()
+		http.Error(w, "Estudiante no encontrado", http.StatusNotFound)
+		return
+	}
+
+	delete(estudiantes, id)
+	mutex.Unlock()
+
+	w.WriteHeader(http.StatusNoContent) // 204 Éxito, pero sin contenido que retornar
 }
